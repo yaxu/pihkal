@@ -1,0 +1,15 @@
+.cabal-sandbox
+cabal.sandbox.config
+dist
+cabal
+*.o
+*.hi
+*.dyn_hi
+*.dyn_o
+.stack-work
+.DS_Store
+
+# text editor temp files
+*~
+\#*\#
+.\#*
