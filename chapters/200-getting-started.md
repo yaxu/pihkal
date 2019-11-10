@@ -5,7 +5,8 @@ running Linux, MacOS X or Windows. Your computer doesn't need to be
 particularly powerful, but you might well need full admin rights to
 it. All components of the TidalCycles system are free/open source. For
 the latest installation information, please refer to the instructions
-on https://tidalcycles.org/
+on
+[https://tidalcycles.org/Installation](https://tidalcycles.org/Installation).
 
 ## Architecture of a Tidal environment
 
@@ -130,8 +131,8 @@ subtle distortion to the sound output (try lower values for more
 distortion). You can pattern these effects too, we'll come to that in
 chapter xxx.
 
-Reading back some more, we find another control pattern, this time
-setting the *sound* that's played.
+Reading back some more, we find another control pattern, setting the
+*sound* that's played.
 
 ```{.haskell}
 sound "bd [~ rs] mt [lt ht]"
@@ -179,9 +180,9 @@ input, and returns a mangled version of that pattern as output.
 ```{.haskell}
 d1 $
 ```
-Reading right back to the start, we get to `d1`{.haskell}. `d1`{.haskell} is another function, which takes a pattern of sound controls as input, and sends it to the synthesiser to be turned into the actual sounds
+Reading right back to the start, we get to `d1`{.haskell}. `d1`{.haskell} is another function, which takes a pattern of controls as input (in this case `sound` and `crush` control patterns combined), and sends it to the synthesiser to be turned into the actual sounds
 you can hear. The `$`{.haskell} operator is there to divide up the line; whatever is on the
-right of the `$`{.haskell} is passed to the function on the left. Looking at the whole pattern again, you can see there's actually two `$`{.haskell}s in it. One makes sure the `sound`{.haskell} and `crush`{.haskell} controls are combined before being mangled by the `chunk`{.haskell} function, and the other makes sure everything gets worked out before finally being passed to `d1`{.haskell}.
+right of the `$`{.haskell} is calculated before being passed to the function on the left. Looking at the whole pattern again, you can see there's actually two `$`{.haskell}s in it. One makes sure the `sound`{.haskell} and `crush`{.haskell} controls are combined before being mangled by the `chunk`{.haskell} function, and the other makes sure everything gets worked out before finally being passed to `d1`{.haskell}.
 
 ```{.haskell render="audio" prefix="d1 $ "}
 chunk 4 (hurry 2) $ sound "bd [~ rs] mt [lt ht]" # crush 5
