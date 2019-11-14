@@ -58,8 +58,12 @@ renderSingleColour (id, classes, namevals) contents =
 
 renderSinglePart :: (String, [String], [(String, String)]) -> String -> IO [Block]
 renderSinglePart (id, classes, namevals) contents =
-  do let codeblock = CodeBlock (id, classes, []) contents
-     img <- makePart namevals contents
+  do let preprocess :: String
+         preprocess = fromMaybe "" $ lookup "preprocess" namevals
+         prepend :: String
+         prepend = fromMaybe "" $ lookup "prepend" namevals
+         codeblock = CodeBlock (id, classes, []) (prepend ++ contents)
+     img <- makePart namevals preprocess contents
      return $ [codeblock,Para img]
 
 renderSingleGradient :: (String, [String], [(String, String)]) -> String -> IO [Block]
@@ -124,12 +128,12 @@ makeColour' namevals line =
      fn <- runvis' renderCyclePDF result filename namevals
      return $ fn
 
-makePart :: [(String,String)] -> String -> IO [Inline]
-makePart namevals line =
+makePart :: [(String,String)] -> String -> String -> IO [Inline]
+makePart namevals preprocess line =
   do putStrLnErr $ "[code: " ++ line ++ "]"
      let name = map switchSlashes $ show $ md5 $ C.pack ("part-" ++ line)
          filename = "figures/" ++ name
-     result <- interp line (Hint.as :: Pattern String)
+     result <- interp (preprocess ++ line) (Hint.as :: Pattern String)
      img <- runvis renderPartPDF result filename (("width","100%"):namevals)
      return $ img
 
