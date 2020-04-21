@@ -5,7 +5,8 @@ mini-notation for quickly describing sequences, and a library of
 functions for transforming pattern. In this chapter, we focus on the
 mini-notation. Built on Tidal's flexible approach to musical time, the
 mini-notation is a quick way to express rhythms, whether you're making
-canonical techno or far-out polyrhythmic minimalism.
+canonical techno, far-out polyrhythmic minimalism, or a musical genre
+entirely of your own invention.
 
 ## Sequences and sub-sequences
 
@@ -24,9 +25,10 @@ mini-notation sequence, the `sound`{.haskell} specifies that it's a
 pattern of sounds, and the `d1 $`{.haskell} sends the pattern to be
 turned into sound.
 
-\StoryNote{A note for experienced programmers - mini-notation
-sequences are immediately parsed into tidal patterns, so although they
-\emph{look} like strings, you can't treat them as such.}{strings}
+\StoryNote{A note for experienced programmers - in Tidal,
+mini-notation sequences are immediately parsed into patterns, so
+although they \emph{look} like strings, you can't treat them as
+such.}{strings}
 
 Most examples in this chapter will be visual, rather than musical, so
 you can have a good look at the pattern next to its code. Some
@@ -90,14 +92,14 @@ not the event. That doesn't mean that things _have_ to fit inside a
 cycle, or that one cycle has to be the same as the next.
 
 You can change the current tempo with the `setcps`{.haskell} function,
-for example, to play at a rate of 0.4 cycles per second:
+for example, to play at a rate of 0.45 cycles per second:
 
 ```{.haskell}
 setcps 0.45
 ```
 
-If you had four events in a cycle, that would feel like (0.45 * 4 =)
-1.8 beats per second, or (0.45 * 4 * 60 =) 108 beats per minute.
+If you had four events in a cycle, that would feel like (0.45 x 4 =)
+1.8 beats per second, or (0.45 x 4 x 60 =) 108 beats per minute.
 
 ### Rests (gaps) with `~`{.haskell}
 
@@ -171,7 +173,7 @@ the space of one. The following sounds exactly the same:
 sound "bd [rs rs rs] mt lt"
 ```
 
-From the following visual representation, we can clearly the division
+From the following visual representation, we can see the cycle divided
 into four steps, with the second step 'sped up':
 
 ```{.haskell render="part" width=1500}
@@ -308,36 +310,38 @@ there aren't enough steps in the second sequence, it loops round. It
 is clearer what is going on if we speed up the whole thing by a factor
 of three, in order to see three cycles of the mini-notation sequence:
 
-```{.haskell render="gradient" width=1500}
-fast 3 "{pink red purple, lightblue darkblue}"
+```{.haskell render="part" width=1500}
+fast 3 "{a b c, d e}"
 ```
 
 This kind of construction, where you layer up sequences with the same
 step duration but with differing number of steps, is known as
 _polymetre_.
 
-Here's what happen if we change that pattern from curly to square brackets:
+Here's what happens if we change that pattern from curly to square brackets:
 
-```{.haskell render="gradient" width=1500}
-fast 3 "[pink red purple, lightblue darkblue]"
+```{.haskell render="part" width=1500}
+fast 3 "[a b c, d e]"
 ```
 
 So to recap, square brackets allow you to create _polyrhythms_ where
-subsequences repeat at the same rate but can have different rhythmic
-structures, and curly brackets allow _polymetre_, with the same
-rhythmic structure, but different periods of repetition.
+subsequences repeat at the same rate, but can have different rhythmic
+structures. Curly brackets allow _polymetre_, where different parts
+have the same rhythmic structure, but different periods of repetition.
 
 There's one more thing to note about polymetre. We have seen that with
 `{}`{.haskell}, steps align, and that the number of steps per cycle is
-given by the first subsequence. for example the following will take
-three steps per cycle, from both subsequences:
+given by the first subsequence. For example, the following will take
+three steps per cycle from all subsequenc, because there are three
+steps in the first subsequence:
 
 ```{.haskell render="gradient" width=1500}
  "{pink red purple, lightblue blue darkblue orange}"
 ```
 
-However you can manually set the number of steps per cycle, by adding
-`%` and a number after the closing curly bracket. For example to take twelve steps per cycle:
+However, you can manually set the number of steps per cycle, by adding
+`%` and a number after the closing curly bracket. For example to take
+twelve steps per cycle from the subsequences:
 
 ```{.haskell render="gradient" width=1500}
  "{pink red purple, lightblue blue darkblue orange}%12"
@@ -358,10 +362,12 @@ to grouping with `[]`{.haskell}. For example this ...
  "a b c . d e f g . h i"
 ```
 
-Whereas `[]`{.haskell} is placed around each subsequence,
+Whereas `[]`{.haskell} is placed _around_ each subsequence,
 `.`{.haskell} is placed _between_ successive sequences. This is
-sometimes nice to use, but you can't 'nest' subpatterns inside
-patterns with `.`{.haskell} alone. You can mix and match them, though:
+sometimes nice to use, as a way of 'marking out' the rhythmic pulse in
+a cycle. However, you can't 'nest' subpatterns inside subpatterns with
+`.`{.haskell} alone. You can mix and match `.`{.haskell} and
+`[]`.haskell, though:
 
 ```{.haskell render="part" width=1500}
  "a b c . d [e f g] . h i"
@@ -382,6 +388,19 @@ it, for example the following does the same as the above.
 
 ```{.haskell render="audio" prefix="d1 $ "}
 sound "[lt ht mt]/3"
+```
+
+Here's six cycles of a mininotation pattern, where the third step
+cycles through a subpattern, returning one event each time around:
+
+```{.haskell render="part" width=1500}
+fast 6 $ "a b <c d e> f"
+```
+
+Again, you can mix-and-match this with other forms of subpatterns:
+
+```{.haskell render="part" width=1500}
+fast 6 $ "a b <c [d e] [f g h]> i"
 ```
 
 ## Repeating steps with `!`{.haskell}
@@ -487,7 +506,7 @@ layering them up, it picks one of them to play at random, each cycle.
 sound "bd [mt|ht lt ht]"
 ```
 
-Sometimes the above will play the equivalent of `bd mt`{.haskell}, and
+For some cycles, the above will play the equivalent of `bd mt`{.haskell}, and
 others it will play `bd [ht lt ht]`{.haskell}. Here's a visual
 example:
 

@@ -16,8 +16,9 @@ import System.Directory (doesFileExist)
 import System.IO
 import Data.Digest.Pure.MD5
 import Control.Concurrent (threadDelay)
+import qualified Data.Text as T
 
-libs = ["Prelude","Sound.Tidal.Context","Sound.OSC.Datum", "Data.Colour.SRGB", "Data.Colour.Names"]
+libs = ["Sound.Tidal.Context","Sound.OSC.Datum", "Data.Colour", "Data.Colour.SRGB", "Data.Colour.Names", "Data.Map"]
 
 imgFormat = "pdf"
 
@@ -26,14 +27,17 @@ putStrLnErr = hPutStrLn stderr
 interp s as = do Hint.runInterpreter $ do
                    Hint.set [languageExtensions := [OverloadedStrings]]
                    Hint.setImportsQ $ (Prelude.map (\x -> (x, Nothing)) libs) ++ [("Data.Map", Nothing)]
+                   Hint.setImportsF $ (Hint.ModuleImport "Prelude" Hint.NotQualified (Hint.HidingList ["(<*)", "(*>)"]))
+                                      :(Prelude.map (\x -> Hint.ModuleImport x Hint.NotQualified Hint.NoImportList) libs)
                    pat <- Hint.interpret s (as)
                    return pat
 
 doRender :: Block -> IO [Block]
 doRender cb@(CodeBlock (id, classes, namevals) contents) =
-  do case lookup "render" namevals of
+  do case (T.unpack <$> lookup (T.pack "render") namevals) of
        Just "gradient"    -> renderSingleGradient (id, classes, namevals) contents
        Just "part"        -> renderSinglePart (id, classes, namevals) contents
+       Just "partnum"     -> renderSinglePartNum (id, classes, namevals) contents
        Just "colour"      -> renderSingleColour (id, classes, namevals) contents
        Just "colourx"     -> renderSingleColourSideBySide (id, classes, namevals) contents
        Just "multicolour" -> renderMultiColour (id, classes, namevals) contents
@@ -47,41 +51,51 @@ main = toJSONFilter doRender
 
 -- renderAudio (id, classes, namevals) contents = return [CodeBlock (id, classes, namevals) contents]
 
-renderSingleColour :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderSingleColour :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderSingleColour (id, classes, namevals) contents =
   do let codeblock = CodeBlock (id, classes, []) contents
      -- img <- makeColour namevals contents
      -- return $ [codeblock, Para img]
      fn <- makeColour' namevals contents
-     return $ [RawBlock (Format "tex") ("\\includegraphics[width=3em]{" ++ fn ++ "}"), codeblock]
+     return $ [RawBlock (Format $ T.pack "tex") (T.pack $ "\\includegraphics[width=3em]{" ++ fn ++ "}"), codeblock]
   -- 
 
-renderSinglePart :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderSinglePart :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderSinglePart (id, classes, namevals) contents =
-  do let preprocess :: String
-         preprocess = fromMaybe "" $ lookup "preprocess" namevals
-         prepend :: String
-         prepend = fromMaybe "" $ lookup "prepend" namevals
-         codeblock = CodeBlock (id, classes, []) (prepend ++ contents)
+  do let preprocess :: T.Text
+         preprocess = fromMaybe (T.pack "") $ lookup (T.pack "preprocess") namevals
+         prepend :: T.Text
+         prepend = fromMaybe (T.pack "") $ lookup (T.pack "prepend") namevals
+         codeblock = CodeBlock (id, classes, []) (prepend `T.append` contents)
      img <- makePart namevals preprocess contents
      return $ [codeblock,Para img]
 
-renderSingleGradient :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderSinglePartNum :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
+renderSinglePartNum (id, classes, namevals) contents =
+  do let preprocess :: T.Text
+         preprocess = fromMaybe (T.pack "") $ lookup (T.pack "preprocess") namevals
+         prepend :: T.Text
+         prepend = fromMaybe (T.pack "") $ lookup (T.pack "prepend") namevals
+         codeblock = CodeBlock (id, classes, []) (prepend `T.append` contents)
+     img <- makePartNum namevals preprocess contents
+     return $ [codeblock,Para img]
+
+renderSingleGradient :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderSingleGradient (id, classes, namevals) contents =
   do let codeblock = CodeBlock (id, classes, []) contents
      img <- makeGradient namevals contents
      return $ [codeblock,Para img]
 
-renderSingleColourSideBySide :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderSingleColourSideBySide :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderSingleColourSideBySide (id, classes, namevals) contents =
   do let codeblock = CodeBlock (id, classes, []) contents
      img <- makeColour namevals contents
      return $ [Table [] [AlignLeft,AlignLeft] [0.1,0.2] [] ([[[Para img],[codeblock]]])]
 
-renderMultiColour :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderMultiColour :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderMultiColour (id, classes, namevals) contents =
-  do let codelines = lines contents
-         codes = map (\x -> CodeBlock ("",["haskell"],[("render","colour")]) x) codelines
+  do let codelines = T.lines contents
+         codes = map (\x -> CodeBlock (T.pack "",[T.pack "haskell"],[(T.pack "render", T.pack "colour")]) x) codelines
          n = length codelines
          alignments = replicate n AlignDefault
          ratios = replicate (length codelines) (1/(fromIntegral n))
@@ -101,40 +115,50 @@ Table [] [AlignDefault,AlignDefault] [0.4444444444444444,0.4583333333333333]
 switchSlashes '/' = '_'
 switchSlashes x = x
 
-makeGradient :: [(String,String)] -> String -> IO [Inline]
+makeGradient :: [(T.Text,T.Text)] -> T.Text -> IO [Inline]
 makeGradient namevals line =
-  do putStrLnErr $ "[code: " ++ line ++ "]"
-     let name = map switchSlashes $ show $ md5 $ C.pack line
+  do putStrLnErr $ "[code: " ++ T.unpack line ++ "]"
+     let name = map switchSlashes $ show $ md5 $ C.pack $ T.unpack line
          filename = "figures/" ++ name ++ "_gradient"
-     result <- interp line (Hint.as :: Pattern ColourD)
+     result <- interp (T.unpack line) (Hint.as :: Pattern ColourD)
      img <- runvis renderGradientPDF result filename namevals
      return img
 
-makeColour :: [(String,String)] -> String -> IO [Inline]
+makeColour :: [(T.Text,T.Text)] -> T.Text -> IO [Inline]
 makeColour namevals line =
-  do putStrLnErr $ "[code: " ++ line ++ "]"
-     let name = map switchSlashes $ show $ md5 $ C.pack line
+  do putStrLnErr $ "[code: " ++ (T.unpack line) ++ "]"
+     let name = map switchSlashes $ show $ md5 $ C.pack $ T.unpack line
          filename = "figures/" ++ name
-     result <- interp line (Hint.as :: Pattern ColourD)
+     result <- interp (T.unpack line) (Hint.as :: Pattern ColourD)
      img <- runvis renderCyclePDF result filename namevals
      return img
 
-makeColour' :: [(String,String)] -> String -> IO String
+makeColour' :: [(T.Text,T.Text)] -> T.Text -> IO String
 makeColour' namevals line =
-  do putStrLnErr $ "[code: " ++ line ++ "]"
-     let name = map switchSlashes $ show $ md5 $ C.pack line
+  do putStrLnErr $ "[code: " ++ (T.unpack line) ++ "]"
+     let name = map switchSlashes $ show $ md5 $ C.pack $ T.unpack line
          filename = "figures/" ++ name
-     (Right result) <- interp line (Hint.as :: Pattern ColourD)
-     fn <- runvis' renderCyclePDF result filename namevals
+     result <- interp (T.unpack line) (Hint.as :: Pattern ColourD)
+     result' <- either (error . show) return result
+     fn <- runvis' renderCyclePDF result' filename namevals
      return $ fn
 
-makePart :: [(String,String)] -> String -> String -> IO [Inline]
+makePart :: [(T.Text,T.Text)] -> T.Text -> T.Text -> IO [Inline]
 makePart namevals preprocess line =
-  do putStrLnErr $ "[code: " ++ line ++ "]"
-     let name = map switchSlashes $ show $ md5 $ C.pack ("part-" ++ line)
+  do putStrLnErr $ "[code: " ++ (T.unpack line) ++ "]"
+     let name = map switchSlashes $ show $ md5 $ C.pack $ ("part-" ++ (T.unpack line))
          filename = "figures/" ++ name
-     result <- interp (preprocess ++ line) (Hint.as :: Pattern String)
-     img <- runvis renderPartPDF result filename (("width","100%"):namevals)
+     result <- interp (T.unpack $ preprocess `T.append` line) (Hint.as :: Pattern String)
+     img <- runvis renderPartPDF result filename ((T.pack "width", T.pack "100%"):namevals)
+     return $ img
+
+makePartNum :: [(T.Text,T.Text)] -> T.Text -> T.Text -> IO [Inline]
+makePartNum namevals preprocess line =
+  do putStrLnErr $ "[code: " ++ (T.unpack line) ++ "]"
+     let name = map switchSlashes $ show $ md5 $ C.pack $ ("part-" ++ (T.unpack line))
+         filename = "figures/" ++ name
+     result <- interp (T.unpack $ preprocess `T.append` line) (Hint.as :: Pattern Int)
+     img <- runvis renderPartPDF (result) filename ((T.pack "width", T.pack "100%"):namevals)
      return $ img
 
 visWith f "png" name label pat = do f name label pat
@@ -145,29 +169,29 @@ visWith f _ name label pat = do f name label pat
                                 return ()
   
 
-runvis' :: (String -> String -> Pattern b -> IO ()) -> Pattern b -> [Char] -> [([Char], String)] -> IO String
+runvis' :: (String -> String -> Pattern b -> IO ()) -> Pattern b -> String -> [(T.Text, T.Text)] -> IO String
 runvis' f pat name namevals =
-  do let w = case lookup "width" namevals of
-               Nothing -> "150"
+  do let w = case lookup (T.pack "width") namevals of
+               Nothing -> T.pack "150"
                Just str -> str
      ifMissing (name ++ "." ++ imgFormat) $ visWith f imgFormat name "" pat
      return $ name ++ "." ++ imgFormat
 
-runvis :: Show a => (String -> String -> Pattern b -> IO ()) -> Either a (Pattern b) -> [Char] -> [([Char], String)] -> IO [Inline]
-runvis _ (Left err) _ _ = return $ [Str $ show err]
+runvis :: Show a => (String -> String -> Pattern b -> IO ()) -> Either a (Pattern b) -> String -> [(T.Text, T.Text)] -> IO [Inline]
+runvis _ (Left err) _ _ = return $ [Str $ T.pack $ show err]
 runvis f (Right pat) name namevals =
-  do let n = case lookup "cycles" namevals of
+  do let n = case lookup (T.pack "cycles") namevals of
                Nothing -> 0
-               Just str -> (read str) - 1
-         w = case lookup "width" namevals of
+               Just str -> (read $ T.unpack str) - 1
+         w = case lookup (T.pack "width") namevals of
                Nothing -> case n of
-                            0 -> "150"
-                            _ -> "150"
+                            0 -> T.pack "150"
+                            _ -> T.pack "150"
                Just str -> str
          cycles = [0 .. n]
      mapM_ (\cycle -> ifMissing (name ++ "_" ++ show cycle ++ "." ++ imgFormat) $ visWith f imgFormat (name ++ "_" ++ show cycle) (label cycle n) ((toRational cycle) `rotL` pat) 
            ) cycles 
-     return $ concatMap (\cycle -> [Image ("",[],[("width", w)]) [] (name ++ "_" ++ (show cycle) ++ "." ++ imgFormat,""),Space]) cycles
+     return $ concatMap (\cycle -> [Image (T.pack "",[],[(T.pack "width", w)]) [] (T.pack $ name ++ "_" ++ (show cycle) ++ "." ++ imgFormat, T.pack ""),Space]) cycles
        where label cycle n | n > 0 = show (cycle + 1)
                            | otherwise = ""
 
@@ -181,45 +205,45 @@ ifMissing fn f = do exists <- doesFileExist fn
                                  return Nothing
 
 
-renderSingleAudio :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderSingleAudio :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderSingleAudio (id, classes, namevals) contents =
-  do let prefix :: String
-         prefix = fromMaybe "" $ lookup "prefix" namevals
-         codeblock = CodeBlock (id, classes, []) (prefix ++ contents)
+  do let prefix :: T.Text
+         prefix = fromMaybe (T.pack "") $ lookup (T.pack "prefix") namevals
+         codeblock = CodeBlock (id, classes, []) (prefix `T.append` contents)
      (filename, msg) <- makeAudio namevals contents     
      -- return $ [RawBlock (Format "html") ("<div class=\"audioexample\">"), codeblock, RawBlock (Format "html") ("<audio controls=\"1\"><source src=\"" ++ filename ++  "\" type=\"audio/mp3\" /></audio></div>")]
-     return $ [RawBlock (Format "tex") ("\\marginpar[]{\\vspace{0.7em}\\href{" ++ filename ++ "}{\\includegraphics[width=1em]{playcirc.pdf}}}"),codeblock]
+     return $ [RawBlock (Format $ T.pack "tex") (T.concat [T.pack "\\marginpar[]{\\vspace{0.7em}\\href{", filename, T.pack "}{\\includegraphics[width=1em]{playcirc.pdf}}}"]), codeblock]
 
-renderMultiAudio :: (String, [String], [(String, String)]) -> String -> IO [Block]
+renderMultiAudio :: (T.Text, [T.Text], [(T.Text, T.Text)]) -> T.Text -> IO [Block]
 renderMultiAudio (id, classes, namevals) contents =
-  do let codelines = lines contents
-         codes = map (\x -> [CodeBlock ("",["haskell"],[("render","colour")]) x]) codelines
+  do let codelines = T.lines contents
+         codes = map (\x -> [CodeBlock (T.pack "",[T.pack "haskell"],[(T.pack "render", T.pack "colour")]) x]) codelines
          n = length codelines
          alignments = replicate n AlignDefault
          ratios = replicate (length codelines) (1/(fromIntegral n))
      audios <- mapM (makeAudio namevals) codelines
      let audios' = map showAudio audios
      return $ [Table [] alignments ratios [] (codes:[audios'])]
-       where showAudio (filename, msg) = [Para ([Link ("",[],[]) [Image ("",[],[("width", "80")]) [] ("playcirc." ++ imgFormat,"fig:")] (filename,"")])]
+       where showAudio (filename, msg) = [Para ([Link (T.pack "",[],[]) [Image (T.pack "",[],[(T.pack "width", T.pack "80")]) [] (T.pack $ "playcirc." ++ imgFormat, T.pack "fig:")] (filename,T.pack "")])]
 
-makeAudio :: [(String,String)] -> String -> IO (String, [Inline])
+makeAudio :: [(T.Text,T.Text)] -> T.Text -> IO (T.Text, [Inline])
 makeAudio namevals code =
-  do let defaultName = (map switchSlashes $ show $ md5 $ C.pack code) ++ ".mp3"
-         name = fromMaybe defaultName $ lookup "fn" namevals
+  do let defaultName = (map switchSlashes $ show $ md5 $ C.pack $ T.unpack code) ++ ".mp3"
+         name = T.unpack $ fromMaybe (T.pack defaultName) $ lookup (T.pack "fn") namevals
          filename = "sounds/" ++ name
-         cps = case lookup "cps" namevals of
+         cps = case lookup (T.pack "cps") namevals of
                  Nothing -> 1
-                 Just str -> (read str)
+                 Just str -> (read $ T.unpack str)
      putStrLnErr $ "rendering to " ++ filename ++ ":"
-     putStrLnErr $ code
-     err <- ifMissing filename $ do result <- interp code (Hint.as :: ControlPattern)
+     putStrLnErr $ T.unpack code
+     err <- ifMissing filename $ do result <- interp (T.unpack code) (Hint.as :: ControlPattern)
                                     runaud result filename namevals cps
      let msg = fromMaybe [] err
-     return (filename, msg)
+     return (T.pack filename, msg)
 
 
-runaud :: Show a => Either a (ControlPattern) -> [Char] -> [([Char], String)] -> Double -> IO ([Inline])
-runaud (Left err) _ _ _ = return [Str $ show err]
+runaud :: Show a => Either a (ControlPattern) -> [Char] -> [(T.Text, T.Text)] -> Double -> IO ([Inline])
+runaud (Left err) _ _ _ = return [Str $ T.pack $ show err]
 runaud (Right pat) filename namevals cpsv =
   do let seconds = 5
      tidal <- startTidal (superdirtTarget {oLatency = 0.15, oAddress = "127.0.0.1", oPort = 57120}) (defaultConfig {cFrameTimespan = 1/20})
