@@ -7,7 +7,7 @@ _words_ (like `"bd sd"`{.haskell}) into a pattern of _controls_ (like
 kind of sound to play, in particular which set of samples or
 synthesiser notes to choose from. There are many more functions
 allowing you to pattern other aspects of sound, such as loudness,
-pitch, distortion, panning and filtering. This chapter will introduce
+pitch, distortion, panning, filtering. This chapter will introduce
 them, and how to combine them together.
 
 ## Combining control patterns
@@ -55,7 +55,7 @@ sound "bd cp sd mt" +| crush "16 3"
 
 This will take a bit more explaining! Comparing both examples above,
 the shaded parts are the same, but the second example has 'remembered'
-the original events on the right. Whereas the `bd`{.haskell} in
+the the original events on the right. Whereas the `bd`{.haskell} in
 the first example was a simple event taking up the first quarter of
 the cycle, in the second example, it's a *fragment* of an event. It
 still takes up a quarter of a cycle, but it remembers that it is
@@ -85,14 +85,14 @@ sound "bd cp sd" |+ crush "16 3"
 With the `|+`{.haskell} operator, we keep the structure of the three
 events from the left hand side. The middle one gets split in half,
 between the two events on the right hand side. In the end, three
-events are triggered; the second half of `cp`{.haskell} (that matches
-with the `crush 3`{.haskell}) has lost its start, so doesn't play.
+events are triggered; the `cp`{.haskell} has lost its start, so
+doesn't play.
 
 The below shows that if we instead use the `+|`{.haskell} operator,
-the event structure comes from the pattern on the right, and is split
+the event structure comes the pattern on the right, and is split
 between events on the left. This time there are only two events with
 their 'starts' intact (`bd`{.haskell} and `cp`{.haskell}, and that
-therefore results in a sound being triggered.
+therefore result in a sound being triggered.
 
 ```{.haskell render="part" width=1500 preprocess="show <$> " prepend="d1 $ "}
 sound "bd cp sd" +| crush "16 3"
@@ -112,10 +112,10 @@ all four.
 
 ## Summary
 
-You might be wondering why events that have lost their trigger point
-are kept at all, if they can't be heard. The answer is that these
+You might be wondering why events are kept at all, if they have lost
+their trigger point, and so can't be heard. The answer is that these
 event fragments become useful when it comes to using patterns in
 different ways, such as combining with yet another control pattern, or
-feeding into a function that transforms the pattern so fragmentary
-event onsets once more come into play.
+feeding it into a function that transforms the resulting pattern so
+fragmentary event onsets once more come into play.
 
